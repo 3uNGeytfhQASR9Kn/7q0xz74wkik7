@@ -151,8 +151,8 @@ function showLedger(mode){
     ds.forEach((d,i)=>{
       h += `<details class="race"${i===0?' open':''}><summary><div class="rn">${d.slice(5)}</div><div class="rt">${d}（${wd(d)}）の買い目</div><div class="chev">›</div>
         <div class="rc">${by[d].bets.length}点・賭け金 ${yen(by[d].bets.reduce((a,b)=>a+b.stake,0))}</div></summary><div class="inner"><div class="tw"><table>
-        <tr><th>レース</th><th>券種</th><th>買い目</th><th class="n">期待</th><th class="n">賭け</th><th class="n">結果</th></tr>` +
-        by[d].bets.map(b=>`<tr><td>${b.race}${b.live?'<span class="mute">（直前）</span>':''}</td><td>${b.kind}</td><td><b>${b.comb}</b></td><td class="n">${Math.round(b.ev*100)}%</td><td class="n">${yen(b.stake)}</td><td class="n">${resultHtml(b)}</td></tr>`).join('') + '</table></div></div></details>';
+        <tr><th>結果</th><th>レース</th><th>券種</th><th>買い目</th><th class="n">期待</th></tr>` +
+        by[d].bets.map(b=>`<tr><td>${resultHtml(b)}</td><td>${b.race}${b.live?'<span class="mute">（直前）</span>':''}</td><td>${b.kind}</td><td><b>${b.comb}</b></td><td class="n">${Math.round(b.ev*100)}%</td></tr>`).join('') + '</table></div></div></details>';
     });
   }
   view.innerHTML = h + '<footer>結果は払戻の確定後に入ります。取消・除外の買い目は賭け金が戻ります。</footer>';
