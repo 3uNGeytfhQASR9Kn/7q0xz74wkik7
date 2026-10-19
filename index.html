@@ -99,8 +99,8 @@ function raceHtml(r, ref){
     <td class="n">${pct(x.p1)}<span class="bar" style="width:${Math.round(x.p1*90)}px"></span></td>
     <td class="n">${pct(x.p3,0)}</td><td>${esc(x.train)}</td></tr>`).join('');
   const hasStake = r.bets.some(b => b.stake !== undefined);
-  const bets = r.bets.map(b => `<tr><td>${b.kind}</td><td><b>${b.comb}</b></td><td class="n">${pct(b.p)}</td>
-    <td class="n">${b.odds.toFixed(1)}${b.est?"*":""}</td><td class="n ev ${b.ev>=1.2?'hi':''}">${Math.round(b.ev*100)}%</td>${hasStake?`<td class="n">${b.stake?yen(b.stake):'<span class="mute">—</span>'}</td><td class="n">${resultHtml(b)}</td>`:''}</tr>`).join('');
+  const bets = r.bets.map(b => `<tr>${hasStake?`<td>${resultHtml(b)}</td>`:''}<td>${b.kind}</td><td><b>${b.comb}</b></td><td class="n">${pct(b.p)}</td>
+    <td class="n">${b.odds.toFixed(1)}${b.est?"*":""}</td><td class="n ev ${b.ev>=1.2?'hi':''}">${Math.round(b.ev*100)}%</td></tr>`).join('');
   return `<details class="race"><summary>
     <div class="rn">${r.no}R</div><div class="rt">${esc(r.name)}</div><div class="chev">›</div>
     <div class="rc">${r.cond}・${r.time}・<span class="ver ${r.live?'live':''}">${r.live?'直前 '+r.live+'版':'前日版'}</span></div>
@@ -109,7 +109,7 @@ function raceHtml(r, ref){
       <div class="sub">出走馬（1着の確率の高い順）</div>
       <div class="tw"><table><tr><th></th><th class="n">番</th><th>馬名</th><th class="n">1着</th><th class="n">3着内</th><th>調教</th></tr>${rows}</table></div>
       <div class="sub">買い目（期待回収率の高い順・各100円）</div>
-      <div class="tw"><table><tr><th>券種</th><th>買い目</th><th class="n">的中</th><th class="n">オッズ</th><th class="n">期待</th>${hasStake?`<th class="n">${ref?'仮の賭け':'賭け'}</th><th class="n">結果</th>`:''}</tr>${bets}</table></div>
+      <div class="tw"><table><tr>${hasStake?'<th>結果</th>':''}<th>券種</th><th>買い目</th><th class="n">的中</th><th class="n">オッズ</th><th class="n">期待</th></tr>${bets}</table></div>
     </div></details>`;
 }
 
@@ -146,8 +146,8 @@ function showLedger(mode){
       <div class="card"><div class="l">払戻</div><div class="v">${yen(T.ret)}</div></div>
       <div class="card"><div class="l">的中</div><div class="v">${T.hit} / ${T.n}点</div></div>
       <div class="card"><div class="l">結果待ち</div><div class="v">${T.pend}点</div></div></div>
-      <h2 class="sec">日ごと</h2><div class="tw"><table><tr><th>日付</th><th class="n">買い目</th><th class="n">賭け金</th><th class="n">払戻</th><th class="n">収支</th><th class="n">回収率</th></tr>` +
-      ds.map(d=>{ const x=by[d]; return `<tr><td><a href="#${d}" data-d="${d}">${d}</a></td><td class="n">${x.n}${x.pend?`（+待ち${x.pend}）`:''}</td><td class="n">${yen(x.stake)}</td><td class="n">${yen(x.ret)}</td><td class="n ${cls(x.ret-x.stake)}">${sgn(x.ret-x.stake)}</td><td class="n">${x.stake?(x.ret/x.stake*100).toFixed(0)+'%':'—'}</td></tr>`; }).join('') + '</table></div>';
+      <h2 class="sec">日ごと</h2><div class="tw"><table><tr><th>日付</th><th class="n">買い目</th><th class="n">払戻</th><th class="n">収支</th><th class="n">回収率</th></tr>` +
+      ds.map(d=>{ const x=by[d]; return `<tr><td><a href="#${d}" data-d="${d}">${d}</a></td><td class="n">${x.n}${x.pend?`（+待ち${x.pend}）`:''}</td><td class="n">${yen(x.ret)}</td><td class="n ${cls(x.ret-x.stake)}">${sgn(x.ret-x.stake)}</td><td class="n">${x.stake?(x.ret/x.stake*100).toFixed(0)+'%':'—'}</td></tr>`; }).join('') + '</table></div>';
     ds.forEach((d,i)=>{
       h += `<details class="race"${i===0?' open':''}><summary><div class="rn">${d.slice(5)}</div><div class="rt">${d}（${wd(d)}）の買い目</div><div class="chev">›</div>
         <div class="rc">${by[d].bets.length}点・賭け金 ${yen(by[d].bets.reduce((a,b)=>a+b.stake,0))}</div></summary><div class="inner"><div class="tw"><table>
