@@ -20,8 +20,9 @@ main{max-width:760px;margin:0 auto;padding:4px 12px 56px}
 h2.sec{font-size:.8rem;letter-spacing:.06em;color:var(--mute);margin:20px 2px 8px;font-weight:600}
 .top{display:grid;gap:6px}
 .topi{display:flex;align-items:baseline;gap:8px;background:var(--card);border:1px solid var(--line);border-radius:10px;padding:8px 12px}
-.topi .r{font-weight:600;min-width:4.6em}
-.topi .k{color:var(--mute);font-size:.85rem}
+.topi .r{font-weight:600;flex:0 0 5.6em;white-space:nowrap}
+.topi .k{flex:0 0 3.4em}
+.topi .k{color:var(--mute);font-size:.85rem;white-space:nowrap}
 .topi .c{font-weight:600}
 .topi .ev{margin-left:auto;color:var(--acc);font-weight:700}
 .tabs{display:flex;gap:6px;overflow-x:auto;padding:2px 0 8px}
@@ -31,7 +32,7 @@ h2.sec{font-size:.8rem;letter-spacing:.06em;color:var(--mute);margin:20px 2px 8p
 details.race{background:var(--card);border:1px solid var(--line);border-radius:12px;margin:8px 0;overflow:hidden}
 details.race>summary{list-style:none;cursor:pointer;padding:10px 12px;display:grid;grid-template-columns:auto 1fr auto;gap:2px 10px;align-items:center}
 details.race>summary::-webkit-details-marker{display:none}
-.rn{grid-row:span 2;font-weight:700;font-size:1.05rem;background:var(--accbg);color:var(--acc);border-radius:8px;padding:6px 8px;text-align:center;min-width:2.8em}
+.rn{grid-row:span 2;font-weight:700;font-size:1.05rem;background:var(--accbg);color:var(--acc);border-radius:8px;padding:6px 0;text-align:center;width:3.6em;min-width:3.6em;font-variant-numeric:tabular-nums;white-space:nowrap}
 .rt{font-weight:600}
 .rc{color:var(--mute);font-size:.8rem}
 .hon{grid-column:2/4;font-size:.9rem}
@@ -54,6 +55,8 @@ table{border-collapse:collapse;width:100%;font-size:.88rem}
 th,td{padding:5px 6px;text-align:left;border-bottom:1px solid var(--line);white-space:nowrap}
 th{color:var(--mute);font-weight:600;font-size:.78rem}
 td.n,th.n{text-align:right;font-variant-numeric:tabular-nums}
+table.fx{table-layout:fixed}
+table.fx td,table.fx th{overflow:hidden;text-overflow:ellipsis}
 .m{font-weight:700;color:var(--acc);width:1.6em}
 .bar{display:inline-block;height:6px;border-radius:3px;background:var(--acc);opacity:.55;vertical-align:middle;margin-left:6px}
 .sub{font-size:.78rem;color:var(--mute);margin:12px 0 4px}
@@ -90,6 +93,14 @@ function resultHtml(b){
   if(b.ret===b.stake) return '返還';
   return '<span class="mute">外れ</span>';
 }
+const KINDS = ['単勝','複勝','枠連','馬連','ワイド','馬単','三連複','三連単'];
+const VORD = ['札幌','函館','福島','新潟','東京','中山','中京','京都','阪神','小倉'];
+const nums = c => (String(c).match(/\d+/g)||[]).map(Number);
+function cmpArr(a,b){ for(let i=0;i<Math.max(a.length,b.length);i++){ const x=a[i]??-1, y=b[i]??-1; if(x!==y) return x-y; } return 0; }
+const kidx = k => { const i = KINDS.indexOf(k); return i<0 ? KINDS.length : i; };
+function betCmp(a,b){            // 競馬場 → 何レース目 → 券種 → 買い目の番号
+  return (VORD.indexOf(a.v)-VORD.indexOf(b.v)) || (a.n-b.n) || (kidx(a.kind)-kidx(b.kind)) || cmpArr(nums(a.comb), nums(b.comb));
+}
 let venueOn = null, curDate = null, ledgerOn = false;
 const wd = d => '日月火水木金土'[new Date(d+'T00:00:00').getDay()];
 
@@ -108,7 +119,7 @@ function raceHtml(r, ref){
     <div class="inner">
       <div class="sub">出走馬（1着の確率の高い順）</div>
       <div class="tw"><table><tr><th></th><th class="n">番</th><th>馬名</th><th class="n">1着</th><th class="n">3着内</th><th>調教</th></tr>${rows}</table></div>
-      <div class="sub">買い目（期待回収率の高い順・各100円）</div>
+      <div class="sub">買い目（券種・買い目の順・各100円）</div>
       <div class="tw"><table><tr>${hasStake?'<th>結果</th>':''}<th>券種</th><th>買い目</th><th class="n">的中</th><th class="n">オッズ</th><th class="n">期待</th></tr>${bets}</table></div>
     </div></details>`;
 }
@@ -116,8 +127,8 @@ function raceHtml(r, ref){
 function ledgerRows(){            // 賭け金のある買い目
   const out=[];
   for(const d of dates) for(const [v,rs] of Object.entries(DAYS[d].venues)) for(const r of rs) for(const b of r.bets)
-    if(b.stake) out.push({d, ref:!!DAYS[d].ref, race:v+r.no+'R', live:!!r.live, ...b});
-  return out;
+    if(b.stake) out.push({d, ref:!!DAYS[d].ref, race:v+r.no+'R', v, n:r.no, live:!!r.live, ...b});
+  return out.sort(betCmp);
 }
 function showLedger(mode){
   mode = mode || 'real'; ledgerOn = true; curDate = null;
@@ -150,7 +161,7 @@ function showLedger(mode){
       ds.map(d=>{ const x=by[d]; return `<tr><td><a href="#${d}" data-d="${d}">${d}</a></td><td class="n">${x.n}${x.pend?`（+待ち${x.pend}）`:''}</td><td class="n">${yen(x.ret)}</td><td class="n ${cls(x.ret-x.stake)}">${sgn(x.ret-x.stake)}</td><td class="n">${x.stake?(x.ret/x.stake*100).toFixed(0)+'%':'—'}</td></tr>`; }).join('') + '</table></div>';
     ds.forEach((d,i)=>{
       h += `<details class="race"${i===0?' open':''}><summary><div class="rn">${d.slice(5)}</div><div class="rt">${d}（${wd(d)}）の買い目</div><div class="chev">›</div>
-        <div class="rc">${by[d].bets.length}点・賭け金 ${yen(by[d].bets.reduce((a,b)=>a+b.stake,0))}</div></summary><div class="inner"><div class="tw"><table>
+        <div class="rc">${by[d].bets.length}点・賭け金 ${yen(by[d].bets.reduce((a,b)=>a+b.stake,0))}</div></summary><div class="inner"><div class="tw"><table class="fx"><colgroup><col style="width:5.2em"><col style="width:6.6em"><col style="width:4.6em"><col><col style="width:3.8em"></colgroup>
         <tr><th>結果</th><th>レース</th><th>券種</th><th>買い目</th><th class="n">期待</th></tr>` +
         by[d].bets.map(b=>`<tr><td>${resultHtml(b)}</td><td>${b.race}${b.live?'<span class="mute">（直前）</span>':''}</td><td>${b.kind}</td><td><b>${b.comb}</b></td><td class="n">${Math.round(b.ev*100)}%</td></tr>`).join('') + '</table></div></div></details>';
     });
@@ -168,7 +179,7 @@ function show(d, keepVenue){
   curDate = d; const D = DAYS[d];
   const vs = Object.keys(D.venues);
   if(!keepVenue || !vs.includes(venueOn)) venueOn = vs[0];
-  const top = D.top.map(t => `<div class="topi"><span class="r">${t.venue}${t.no}R</span><span class="k">${t.kind}</span>
+  const top = D.top.slice().sort((a,b)=>betCmp({v:a.venue,n:a.no,kind:a.kind,comb:a.comb},{v:b.venue,n:b.no,kind:b.kind,comb:b.comb})).map(t => `<div class="topi"><span class="r">${t.venue}${t.no}R</span><span class="k">${t.kind}</span>
     <span class="c">${t.comb}</span><span class="ev">${Math.round(t.ev*100)}%</span></div>`).join('');
   view.innerHTML = `
     <div class="meta">${d}（${wd(d)}）の予想 ・ ${updLabel(d)}版 ・ ${esc(D.model)}</div>
