@@ -161,9 +161,9 @@ function showLedger(mode){
       ds.map(d=>{ const x=by[d]; return `<tr><td><a href="#${d}" data-d="${d}">${d}</a></td><td class="n">${x.n}${x.pend?`（+待ち${x.pend}）`:''}</td><td class="n">${yen(x.ret)}</td><td class="n ${cls(x.ret-x.stake)}">${sgn(x.ret-x.stake)}</td><td class="n">${x.stake?(x.ret/x.stake*100).toFixed(0)+'%':'—'}</td></tr>`; }).join('') + '</table></div>';
     ds.forEach((d,i)=>{
       h += `<details class="race"${i===0?' open':''}><summary><div class="rn">${d.slice(5)}</div><div class="rt">${d}（${wd(d)}）の買い目</div><div class="chev">›</div>
-        <div class="rc">${by[d].bets.length}点・賭け金 ${yen(by[d].bets.reduce((a,b)=>a+b.stake,0))}</div></summary><div class="inner"><div class="tw"><table class="fx"><colgroup><col style="width:4.6em"><col style="width:6em"><col style="width:3.8em"><col><col style="width:3.6em"><col style="width:3.4em"><col style="width:3.6em"></colgroup>
-        <tr><th>結果</th><th>レース（発走）</th><th>券種</th><th>買い目</th><th class="n">オッズ</th><th class="n">期待</th><th>出した時刻</th></tr>` +
-        by[d].bets.map(b=>`<tr><td>${resultHtml(b)}</td><td>${b.race}<span class="mute"> ${b.post||''}${b.live?'・直前':''}</span></td><td>${b.kind}</td><td><b>${b.comb}</b></td><td class="n">${b.odds}${b.est?'*':''}</td><td class="n">${Math.round(b.ev*100)}%</td><td>${(b.at||'').slice(5)}</td></tr>`).join('') + '</table></div></div></details>';
+        <div class="rc">${by[d].bets.length}点・賭け金 ${yen(by[d].bets.reduce((a,b)=>a+b.stake,0))}</div></summary><div class="inner"><div class="tw"><table class="fx"><colgroup><col style="width:4.8em"><col style="width:7.4em"><col style="width:3.8em"><col><col style="width:3.4em"></colgroup>
+        <tr><th>結果</th><th>レース・出した時刻</th><th>券種</th><th>買い目（馬番）・オッズ</th><th class="n">期待</th></tr>` +
+        by[d].bets.map(b=>`<tr><td>${resultHtml(b)}</td><td>${b.race}${b.live?'<span class="mute">（直前）</span>':''}<br><span class="mute">${b.post||''}発走<br>${(b.at||'').slice(5)}出し</span></td><td>${b.kind}</td><td><b>${b.comb}</b><br><span class="mute">${b.odds}倍${b.est?'*':''}</span></td><td class="n">${Math.round(b.ev*100)}%</td></tr>`).join('') + '</table></div></div></details>';
     });
   }
   view.innerHTML = h + '<footer>結果は払戻の確定後に入ります。取消・除外の買い目は賭け金が戻ります。オッズと「出した時刻」は買い目を出した時点のもの（直前版は発走の約60分前、無ければ前日の夜）。払戻は確定オッズ。*は推定のオッズ。</footer>';
