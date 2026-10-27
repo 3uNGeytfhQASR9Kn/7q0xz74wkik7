@@ -191,15 +191,15 @@ function show(d, keepVenue){
   view.innerHTML = `
     <div class="meta">${d}（${wd(d)}）の予想 ・ ${updLabel(d)}版 ・ ${esc(D.model)}</div>
     <h2 class="sec">期待回収率${thr}%以上の買い目（${topAll.length}点）</h2>
-    <div class="tabs thr">${THRS.map(x=>`<button data-t="${x}" class="${x===thr?'on':''}">${x}%</button>`).join('')}</div>
-    <div class="hf">発走 <select id="hf"><option value="0">すべての時刻</option>${HOURS.map(h=>`<option value="${h}"${h===hourFrom?' selected':''}>${h}時以降</option>`).join('')}</select> のレース</div><div class="top">${top||'<div class="mute">なし</div>'}</div>
+    <div class="hf">期待回収率 <select id="thr">${THRS.map(x=>`<option value="${x}"${x===thr?' selected':''}>${x}%以上</option>`).join('')}</select>
+      　発走 <select id="hf"><option value="0">すべての時刻</option>${HOURS.map(h=>`<option value="${h}"${h===hourFrom?' selected':''}>${h}時以降</option>`).join('')}</select> のレース</div><div class="top">${top||'<div class="mute">なし</div>'}</div>
     <h2 class="sec">レース</h2>
     <div class="tabs">${vs.map(v=>`<button data-v="${v}" class="${v===venueOn?'on':''}">${v}</button>`).join('')}</div>
     <div class="wx">天気予報（気象庁）: ${esc(D.weather[venueOn]||'')}</div>
     ${D.venues[venueOn].filter(r => hourOf(r.time) >= hourFrom).map(r => raceHtml(r, D.ref)).join('') || '<div class="mute">この時刻以降のレースはありません</div>'}
     <footer>期待回収率 = 的中確率 × オッズ。確率はモデルの推定で、当たりを約束するものではありません。オッズの * は、前売りの量が少ないため推定で置き換えた値。</footer>`;
   view.querySelectorAll('.tabs button[data-v]').forEach(b => b.onclick = () => { venueOn = b.dataset.v; show(curDate, true); });
-  view.querySelectorAll('.tabs.thr button').forEach(b => b.onclick = () => { thr = +b.dataset.t; try{ localStorage.setItem('thr', thr); }catch(e){} show(curDate, true); });
+  document.getElementById('thr').onchange = e => { thr = +e.target.value; try{ localStorage.setItem('thr', thr); }catch(e){} show(curDate, true); };
   document.getElementById('hf').onchange = e => { hourFrom = +e.target.value; show(curDate, true); };
   sel.value = d;
   const i = dates.indexOf(d);
