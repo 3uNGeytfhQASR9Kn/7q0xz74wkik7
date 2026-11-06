@@ -14,7 +14,6 @@ body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.55 -apple-system,
 header{position:sticky;top:0;z-index:5;background:var(--bg);border-bottom:1px solid var(--line);padding:8px 12px;display:flex;gap:6px;align-items:center}
 header button,header select{font:inherit;border:1px solid var(--line);background:var(--card);color:var(--fg);border-radius:8px;padding:6px 10px}
 header select{flex:1;min-width:0;text-align:center;font-size:.9rem;padding:6px 2px}
-header button:disabled{opacity:.35}
 main{max-width:760px;margin:0 auto;padding:4px 12px 56px}
 .meta{color:var(--mute);font-size:.8rem;margin:10px 2px}
 h2.sec{font-size:.8rem;letter-spacing:.06em;color:var(--mute);margin:20px 2px 8px;font-weight:600}
@@ -68,9 +67,7 @@ footer{color:var(--mute);font-size:.75rem;margin:28px 2px}
 </head>
 <body>
 <header>
-  <button id="prev" aria-label="前の日">‹</button>
   <select id="sel" aria-label="日付"></select>
-  <button id="next" aria-label="次の日">›</button>
   <button id="pl" aria-label="収支">収支</button>
 </header>
 <main id="view"></main>
@@ -104,12 +101,17 @@ function betCmp(a,b){            // 競馬場 → 何レース目 → 券種 →
 }
 let venueOn = null, curDate = null, ledgerOn = false;
 const THRS = [95,100,105,110,115,120];      // 日付の画面の絞り込み（期待回収率がこの値以上の買い目を出す）
-let thr = 95, hourFrom = 0;                  // hourFrom: 発走がこの時刻以降のレースだけ（0 = すべて）
-const HOURS = [9,10,11,12,13,14,15,16];
-const hourOf = tm => +String(tm||'0').slice(0,2);
+let thr = 95, shownKey = '';
+function jstNow(){ const s = new Date(Date.now()+9*36e5).toISOString(); return {d:s.slice(0,10), t:s.slice(11,16)}; }   // 日本時間の今日と今の時刻
+function upcoming(d){             // 今日の日付は、発走時刻が今以降のレースだけ（発走時刻の無いレースは出す）。ほかの日はすべて
+  const n = jstNow();
+  return d !== n.d ? (tm => true) : (tm => !tm || tm >= n.t);
+}
+function visKey(d){ const n = jstNow(); return d !== n.d ? '' : Object.values(DAYS[d].venues).flat().filter(r => !r.time || r.time >= n.t).map(r => r.id).join(); }
 try{ const t = +localStorage.getItem('thr'); if(THRS.includes(t)) thr = t; }catch(e){}
 const wd = d => '日月火水木金土'[new Date(d+'T00:00:00').getDay()];
 
+let opened = new Set();           // 表示を作り直すとき、開いていたレースを開いたままにする
 function raceHtml(r, ref){
   const h = r.horses, hon = h[0];
   const rows = h.map(x => `<tr><td class="m">${x.mark}</td><td class="n">${x.no}</td><td>${esc(x.name)}</td>
@@ -118,7 +120,7 @@ function raceHtml(r, ref){
   const hasStake = false;  // 日付の画面には結果を出さない（収支は『収支』ボタン）
   const bets = r.bets.map(b => `<tr>${hasStake?`<td>${resultHtml(b)}</td>`:''}<td>${b.kind}</td><td><b>${b.comb}</b></td><td class="n">${pct(b.p)}</td>
     <td class="n">${b.odds.toFixed(1)}${b.est?"*":""}</td><td class="n ev ${b.ev>=1.2?'hi':''}">${Math.round(b.ev*100)}%</td></tr>`).join('');
-  return `<details class="race"><summary>
+  return `<details class="race" data-id="${r.id}"${opened.has(r.id)?' open':''}><summary>
     <div class="rn">${r.no}R</div><div class="rt">${esc(r.name)}</div><div class="chev">›</div>
     <div class="rc">${r.cond}・${r.time}・<span class="ver ${r.live?'live':''}">${r.live?'直前 '+r.live+'版':'前日版'}</span></div>
     <div class="hon">◎ <b>${hon.no} ${esc(hon.name)}</b> ${pct(hon.p1,0)}</div></summary>
@@ -166,7 +168,7 @@ function showLedger(mode){
       <h2 class="sec">日ごと</h2><div class="tw"><table><tr><th>日付</th><th class="n">買い目</th><th class="n">払戻</th><th class="n">収支</th><th class="n">回収率</th></tr>` +
       ds.map(d=>{ const x=by[d]; return `<tr><td><a href="#${d}" data-d="${d}">${d}</a></td><td class="n">${x.n}${x.pend?`（+待ち${x.pend}）`:''}</td><td class="n">${yen(x.ret)}</td><td class="n ${cls(x.ret-x.stake)}">${sgn(x.ret-x.stake)}</td><td class="n">${x.stake?(x.ret/x.stake*100).toFixed(0)+'%':'—'}</td></tr>`; }).join('') + '</table></div>';
     ds.forEach((d,i)=>{
-      h += `<details class="race"${i===0?' open':''}><summary><div class="rn">${d.slice(5)}</div><div class="rt">${d}（${wd(d)}）の買い目</div><div class="chev">›</div>
+      h += `<details class="race"><summary><div class="rn">${d.slice(5)}</div><div class="rt">${d}（${wd(d)}）の買い目</div><div class="chev">›</div>
         <div class="rc">${by[d].bets.length}点・賭け金 ${yen(by[d].bets.reduce((a,b)=>a+b.stake,0))}</div></summary><div class="inner"><div class="tw"><table>
         <tr><th>結果</th><th>レース</th><th>券種</th><th>買い目</th><th class="n">オッズ</th><th class="n">期待</th><th>出した時刻</th></tr>` +
         by[d].bets.map(b=>`<tr><td>${resultHtml(b)}</td><td>${b.race}</td><td>${b.kind}</td><td><b>${b.comb}</b></td><td class="n">${b.odds}${b.est?'*':''}</td><td class="n">${Math.round(b.ev*100)}%</td><td>${(b.at||'').slice(5)}</td></tr>`).join('') + '</table></div></div></details>';
@@ -175,36 +177,34 @@ function showLedger(mode){
   view.innerHTML = h + '<footer>結果は払戻の確定後に入ります。取消・除外の買い目は賭け金が戻ります。オッズと「出した時刻」は買い目を出した時点のもの（直前版は発走の60・30・10分前に出し直した版のうち発走前の最後の版、無ければ前日の夜）。払戻は確定オッズ。*は推定のオッズ。</footer>';
   view.querySelectorAll('.tabs button').forEach(b => b.onclick = () => showLedger(b.dataset.m));
   view.querySelectorAll('a[data-d]').forEach(a => a.onclick = e => { e.preventDefault(); scrollTo(0,0); show(a.dataset.d); });
-  document.getElementById('next').disabled = true; document.getElementById('prev').disabled = true;
   try{ history.replaceState(null,'', mode==='ref' ? '#pl-ref' : '#pl'); }catch(e){}
   scrollTo(0,0);
 }
 
 function show(d, keepVenue){
   ledgerOn = false; document.getElementById('pl').classList.remove('on');
-  curDate = d; const D = DAYS[d];
-  const vs = Object.keys(D.venues);
+  opened = new Set(keepVenue ? [...view.querySelectorAll('details[open][data-id]')].map(x => x.dataset.id) : []);
+  curDate = d; const D = DAYS[d], keep = upcoming(d), isToday = d === jstNow().d;
+  shownKey = visKey(d);
+  const venues = {};
+  for(const [v,rs] of Object.entries(D.venues)){ const x = rs.filter(r => keep(r.time)); if(x.length) venues[v] = x; }
+  const vs = Object.keys(venues);
   if(!keepVenue || !vs.includes(venueOn)) venueOn = vs[0];
-  const topAll = D.top.filter(t => Math.round(t.ev*100) >= thr && hourOf(t.time) >= hourFrom);
+  const topAll = D.top.filter(t => Math.round(t.ev*100) >= thr && keep(t.time));
   const top = topAll.slice().sort((a,b)=>betCmp({v:a.venue,n:a.no,kind:a.kind,comb:a.comb},{v:b.venue,n:b.no,kind:b.kind,comb:b.comb})).map(t => `<div class="topi"><span class="r">${t.venue}${t.no}R</span><span class="k">${t.kind}</span>
     <span class="c">${t.comb}</span><span class="ev">${Math.round(t.ev*100)}%</span></div>`).join('');
   view.innerHTML = `
     <div class="meta">${d}（${wd(d)}）の予想 ・ ${updLabel(d)}版 ・ ${esc(D.model)}</div>
     <h2 class="sec">期待回収率${thr}%以上の買い目（${topAll.length}点）</h2>
-    <div class="hf">期待回収率 <select id="thr">${THRS.map(x=>`<option value="${x}"${x===thr?' selected':''}>${x}%以上</option>`).join('')}</select>
-      　発走 <select id="hf"><option value="0">すべての時刻</option>${HOURS.map(h=>`<option value="${h}"${h===hourFrom?' selected':''}>${h}時以降</option>`).join('')}</select> のレース</div><div class="top">${top||'<div class="mute">なし</div>'}</div>
-    <h2 class="sec">レース</h2>
-    <div class="tabs">${vs.map(v=>`<button data-v="${v}" class="${v===venueOn?'on':''}">${v}</button>`).join('')}</div>
+    <div class="hf">期待回収率 <select id="thr">${THRS.map(x=>`<option value="${x}"${x===thr?' selected':''}>${x}%以上</option>`).join('')}</select></div><div class="top">${top||'<div class="mute">なし</div>'}</div>
+    <h2 class="sec">${isToday?'これから発走するレース':'レース'}</h2>
+    ${vs.length ? `<div class="tabs">${vs.map(v=>`<button data-v="${v}" class="${v===venueOn?'on':''}">${v}</button>`).join('')}</div>
     <div class="wx">天気予報（気象庁）: ${esc(D.weather[venueOn]||'')}</div>
-    ${D.venues[venueOn].filter(r => hourOf(r.time) >= hourFrom).map(r => raceHtml(r, D.ref)).join('') || '<div class="mute">この時刻以降のレースはありません</div>'}
+    ${venues[venueOn].map(r => raceHtml(r, D.ref)).join('')}` : '<div class="mute">今日のレースはすべて発走しました</div>'}
     <footer>期待回収率 = 的中確率 × オッズ。確率はモデルの推定で、当たりを約束するものではありません。オッズの * は、前売りの量が少ないため推定で置き換えた値。</footer>`;
   view.querySelectorAll('.tabs button[data-v]').forEach(b => b.onclick = () => { venueOn = b.dataset.v; show(curDate, true); });
   document.getElementById('thr').onchange = e => { thr = +e.target.value; try{ localStorage.setItem('thr', thr); }catch(e){} show(curDate, true); };
-  document.getElementById('hf').onchange = e => { hourFrom = +e.target.value; show(curDate, true); };
   sel.value = d;
-  const i = dates.indexOf(d);
-  document.getElementById('next').disabled = i === 0;
-  document.getElementById('prev').disabled = i === dates.length-1;
   try{ history.replaceState(null,'','#'+d); }catch(e){}
 }
 
@@ -212,10 +212,12 @@ function updLabel(d){          // 更新時刻。開催日の当日なら時刻�
   const u = DAYS[d].upd || DAYS[d].made;
   return u.slice(0,10)===d ? u.slice(11,16) : (+u.slice(5,7))+'/'+(+u.slice(8,10))+' '+u.slice(11,16);
 }
-sel.innerHTML = dates.map(d => `<option value="${d}">${d.slice(5).replace('-','/')}(${wd(d)}) ${updLabel(d)}版</option>`).join('');
+sel.innerHTML = dates.map(d => `<option value="${d}">${d.slice(5).replace('-','/')}(${wd(d)})</option>`).join('');
 sel.onchange = () => { scrollTo(0,0); show(sel.value); };
-document.getElementById('prev').onclick = () => { if(!curDate) return; const i=dates.indexOf(curDate); if(i<dates.length-1){ scrollTo(0,0); show(dates[i+1]); } };
-document.getElementById('next').onclick = () => { if(!curDate) return; const i=dates.indexOf(curDate); if(i>0){ scrollTo(0,0); show(dates[i-1]); } };
+// 開いたままの今日のページは、レースが発走して消えたら（1分ごと・画面に戻ったとき）作り直す
+const refresh = () => { if(curDate && !ledgerOn && visKey(curDate) !== shownKey) show(curDate, true); };
+setInterval(refresh, 60000);
+document.addEventListener('visibilitychange', () => { if(!document.hidden) refresh(); });
 document.getElementById('pl').onclick = () => { ledgerOn ? show(dates[0]) : showLedger(); };
 const h = location.hash.slice(1);
 if(h==='pl' || h==='pl-ref') showLedger(h==='pl-ref'?'ref':'real'); else show(DAYS[h] ? h : dates[0]);
