@@ -17,13 +17,6 @@ header select{flex:1;min-width:0;text-align:center;font-size:.9rem;padding:6px 2
 main{max-width:760px;margin:0 auto;padding:4px 12px 56px}
 .meta{color:var(--mute);font-size:.8rem;margin:10px 2px}
 h2.sec{font-size:.8rem;letter-spacing:.06em;color:var(--mute);margin:20px 2px 8px;font-weight:600}
-.top{display:grid;gap:6px}
-.topi{display:flex;align-items:baseline;gap:8px;background:var(--card);border:1px solid var(--line);border-radius:10px;padding:8px 12px}
-.topi .r{font-weight:600;flex:0 0 5.6em;white-space:nowrap}
-.topi .k{flex:0 0 3.4em}
-.topi .k{color:var(--mute);font-size:.85rem;white-space:nowrap}
-.topi .c{font-weight:600}
-.topi .ev{margin-left:auto;color:var(--acc);font-weight:700}
 .tabs{display:flex;gap:6px;overflow-x:auto;padding:2px 0 8px}
 .tabs button{font:inherit;border:1px solid var(--line);background:var(--card);color:var(--fg);padding:6px 16px;border-radius:999px;white-space:nowrap}
 .tabs button.on{background:var(--acc);border-color:var(--acc);color:#fff;font-weight:600}
@@ -49,7 +42,10 @@ a{color:var(--acc)}
 .chev{color:var(--mute);transition:transform .15s}
 details[open] .chev{transform:rotate(90deg)}
 .inner{padding:2px 12px 12px;border-top:1px solid var(--line)}
-.tw{overflow-x:auto}
+.tw{overflow-x:auto;-webkit-overflow-scrolling:touch}
+.topt{background:var(--card);border:1px solid var(--line);border-radius:10px}
+.topt td.r,.topt th:first-child{position:sticky;left:0;z-index:1;background:var(--card);font-weight:600}
+.topt tr:last-child td{border-bottom:0}
 table{border-collapse:collapse;width:100%;font-size:.88rem}
 th,td{padding:5px 6px;text-align:left;border-bottom:1px solid var(--line);white-space:nowrap}
 th{color:var(--mute);font-weight:600;font-size:.78rem}
@@ -191,12 +187,14 @@ function show(d, keepVenue){
   const vs = Object.keys(venues);
   if(!keepVenue || !vs.includes(venueOn)) venueOn = vs[0];
   const topAll = D.top.filter(t => Math.round(t.ev*100) >= thr && keep(t.time));
-  const top = topAll.slice().sort((a,b)=>betCmp({v:a.venue,n:a.no,kind:a.kind,comb:a.comb},{v:b.venue,n:b.no,kind:b.kind,comb:b.comb})).map(t => `<div class="topi"><span class="r">${t.venue}${t.no}R</span><span class="k">${t.kind}</span>
-    <span class="c">${t.comb}</span><span class="ev">${Math.round(t.ev*100)}%</span></div>`).join('');
+  // 期待回収率の高い買い目の一覧（表。オッズ・的中確率・発走時刻も出し、はみ出す分は横にスクロール。レースの列は左に固定）
+  const top = topAll.slice().sort((a,b)=>betCmp({v:a.venue,n:a.no,kind:a.kind,comb:a.comb},{v:b.venue,n:b.no,kind:b.kind,comb:b.comb})).map(t => `<tr><td class="r">${t.venue}${t.no}R</td>
+    <td>${t.kind}</td><td><b>${t.comb}</b></td><td class="n ev ${t.ev>=1.2?'hi':''}">${Math.round(t.ev*100)}%</td>
+    <td class="n">${t.odds.toFixed(1)}${t.est?'*':''}</td><td class="n">${pct(t.p)}</td><td class="n">${t.time||''}</td></tr>`).join('');
   view.innerHTML = `
     <div class="meta">${d}（${wd(d)}）の予想 ・ ${updLabel(d)}版 ・ ${esc(D.model)}</div>
     <h2 class="sec">期待回収率${thr}%以上の買い目（${topAll.length}点）</h2>
-    <div class="hf">期待回収率 <select id="thr">${THRS.map(x=>`<option value="${x}"${x===thr?' selected':''}>${x}%以上</option>`).join('')}</select></div><div class="top">${top||'<div class="mute">なし</div>'}</div>
+    <div class="hf">期待回収率 <select id="thr">${THRS.map(x=>`<option value="${x}"${x===thr?' selected':''}>${x}%以上</option>`).join('')}</select></div>${top ? `<div class="tw topt"><table><tr><th>レース</th><th>券種</th><th>買い目</th><th class="n">期待</th><th class="n">オッズ</th><th class="n">的中</th><th class="n">発走</th></tr>${top}</table></div>` : '<div class="mute">なし</div>'}
     <h2 class="sec">${isToday?'これから発走するレース':'レース'}</h2>
     ${vs.length ? `<div class="tabs">${vs.map(v=>`<button data-v="${v}" class="${v===venueOn?'on':''}">${v}</button>`).join('')}</div>
     <div class="wx">天気予報（気象庁）: ${esc(D.weather[venueOn]||'')}</div>
