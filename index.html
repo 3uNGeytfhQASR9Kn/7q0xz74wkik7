@@ -100,14 +100,15 @@ function betCmp(a,b){            // 競馬場 → 何レース目 → 券種 →
 }
 let venueOn = null, curDate = null, ledgerOn = false;
 const THRS = [95,100,105,110,115,120];      // 日付の画面の絞り込み（期待回収率がこの値以上の買い目を出す）
-let thr = 95, shownKey = '';
+const HITS = [0,1,3,5,10];                // 的中率で絞る（買い目の的中確率が この値（%）以上）
+let thr = 95, hit = 0, shownKey = '';
 function jstNow(){ const s = new Date(Date.now()+9*36e5).toISOString(); return {d:s.slice(0,10), t:s.slice(11,16)}; }   // 日本時間の今日と今の時刻
 function upcoming(d){             // 今日の日付は、発走時刻が今以降のレースだけ（発走時刻の無いレースは出す）。ほかの日はすべて
   const n = jstNow();
   return d !== n.d ? (tm => true) : (tm => !tm || tm >= n.t);
 }
 function visKey(d){ const n = jstNow(); return d !== n.d ? '' : Object.values(DAYS[d].venues).flat().filter(r => !r.time || r.time >= n.t).map(r => r.id).join(); }
-try{ const t = +localStorage.getItem('thr'); if(THRS.includes(t)) thr = t; }catch(e){}
+try{ const t = +localStorage.getItem('thr'); if(THRS.includes(t)) thr = t; const h = +localStorage.getItem('hit'); if(HITS.includes(h)) hit = h; }catch(e){}
 const wd = d => '日月火水木金土'[new Date(d+'T00:00:00').getDay()];
 
 let opened = new Set();           // 表示を作り直すとき、開いていたレースを開いたままにする
@@ -189,15 +190,16 @@ function show(d, keepVenue){
   for(const [v,rs] of Object.entries(D.venues)){ const x = rs.filter(r => keep(r.time)); if(x.length) venues[v] = x; }
   const vs = Object.keys(venues);
   if(!keepVenue || !vs.includes(venueOn)) venueOn = vs[0];
-  const topAll = D.top.filter(t => Math.round(t.ev*100) >= thr && keep(t.time));
+  const topAll = D.top.filter(t => Math.round(t.ev*100) >= thr && t.p*100 >= hit && keep(t.time));
   // 期待回収率の高い買い目の一覧（表。オッズ・的中確率・発走時刻も出し、はみ出す分は横にスクロール。レースの列は左に固定）
   const top = topAll.slice().sort((a,b)=>betCmp({v:a.venue,n:a.no,kind:a.kind,comb:a.comb},{v:b.venue,n:b.no,kind:b.kind,comb:b.comb})).map(t => `<tr><td class="r">${t.venue}${t.no}R${areHtml(t.ur, false)}</td>
     <td>${t.kind}</td><td><b>${t.comb}</b></td><td class="n ev ${t.ev>=1.2?'hi':''}">${Math.round(t.ev*100)}%</td>
     <td class="n">${t.odds.toFixed(1)}${t.est?'*':''}</td><td class="n">${pct(t.p)}</td><td class="n">${t.time||''}</td></tr>`).join('');
   view.innerHTML = `
     <div class="meta">${d}（${wd(d)}）の予想 ・ ${updLabel(d)}版 ・ ${esc(D.model)}</div>
-    <h2 class="sec">期待回収率${thr}%以上の買い目（${topAll.length}点）</h2>
-    <div class="hf">期待回収率 <select id="thr">${THRS.map(x=>`<option value="${x}"${x===thr?' selected':''}>${x}%以上</option>`).join('')}</select></div>${top ? `<div class="tw topt"><table><tr><th>レース</th><th>券種</th><th>買い目</th><th class="n">期待</th><th class="n">オッズ</th><th class="n">的中</th><th class="n">発走</th></tr>${top}</table></div>` : '<div class="mute">なし</div>'}
+    <h2 class="sec">期待回収率${thr}%以上・的中${hit?hit+'%以上':'どれでも'}の買い目（${topAll.length}点）</h2>
+    <div class="hf">期待回収率 <select id="thr">${THRS.map(x=>`<option value="${x}"${x===thr?' selected':''}>${x}%以上</option>`).join('')}</select>
+    的中 <select id="hit">${HITS.map(x=>`<option value="${x}"${x===hit?' selected':''}>${x?x+'%以上':'どれでも'}</option>`).join('')}</select></div>${top ? `<div class="tw topt"><table><tr><th>レース</th><th>券種</th><th>買い目</th><th class="n">期待</th><th class="n">オッズ</th><th class="n">的中</th><th class="n">発走</th></tr>${top}</table></div>` : '<div class="mute">なし</div>'}
     <h2 class="sec">${isToday?'これから発走するレース':'レース'}</h2>
     ${vs.length ? `<div class="tabs">${vs.map(v=>`<button data-v="${v}" class="${v===venueOn?'on':''}">${v}</button>`).join('')}</div>
     <div class="wx">天気予報（気象庁）: ${esc(D.weather[venueOn]||'')}</div>
@@ -205,6 +207,7 @@ function show(d, keepVenue){
     <footer>期待回収率 = 的中確率 × オッズ。確率はモデルの推定で、当たりを約束するものではありません。オッズの * は、前売りの量が少ないため推定で置き換えた値。荒れ度 = 三連単の払戻が10万円を超える見込み（1着の確率の散らばりと頭数から、過去のレースで当てはめた式。平均は約2割）。35%以上に「荒れそう」。荒れやすさはオッズにもほぼ表れているので、荒れそうなレースで穴を買えば得、というわけではありません。</footer>`;
   view.querySelectorAll('.tabs button[data-v]').forEach(b => b.onclick = () => { venueOn = b.dataset.v; show(curDate, true); });
   document.getElementById('thr').onchange = e => { thr = +e.target.value; try{ localStorage.setItem('thr', thr); }catch(e){} show(curDate, true); };
+  document.getElementById('hit').onchange = e => { hit = +e.target.value; try{ localStorage.setItem('hit', hit); }catch(e){} show(curDate, true); };
   sel.value = d;
   try{ history.replaceState(null,'','#'+d); }catch(e){}
 }
