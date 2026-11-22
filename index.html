@@ -63,6 +63,8 @@ th.s.on::after{content:'▼';font-size:.65rem;margin-left:2px}
 th.s.on.up::after{content:'▲'}
 .ev{font-weight:700}
 .ev.hi{color:var(--acc)}
+.fo{color:var(--mute)}
+td.up{color:var(--acc);font-weight:700}
 footer{color:var(--mute);font-size:.75rem;margin:12px 2px}
 </style>
 </head>
@@ -122,9 +124,10 @@ const HSORT = {   // d: 最初に押したときの向き（1 小さい順、-1 
   p1:   {label:'1着の確率の高い順', d:-1, v:x => x.p1},
   p3:   {label:'3着内の確率の高い順', d:-1, v:x => x.p3},
   odds: {label:'単勝オッズの低い順', d:1,  v:x => x.odds},
+  fair: {label:'予想オッズの低い順', d:1,  v:x => x.p1>0 ? 1/x.p1 : null},
   train:{label:'調教の評価の順', d:1,  v:x => x.train},
 };
-const HCOLS = [['no','番',1],['name','馬名',0],['p1','1着',1],['p3','3着内',1],['odds','オッズ',1],['train','調教',0]];
+const HCOLS = [['no','番',1],['name','馬名',0],['p1','1着',1],['p3','3着内',1],['odds','オッズ',1],['fair','予想オッズ',1],['train','調教',0]];
 let hsort = {k:'p1', d:-1};
 try{ const s = JSON.parse(localStorage.getItem('hsort')||'null'); if(s && HSORT[s.k] && (s.d===1||s.d===-1)) hsort = s; }catch(e){}
 function sortHorses(h){
@@ -138,15 +141,19 @@ function sortHorses(h){
   });
 }
 
+const fairOdds = p => !(p>0) ? '' : 1/p >= 1000 ? '999+' : (1/p).toFixed(1);   // 予想オッズ = 1 ÷ 予想の確率（このオッズより高ければ得）
+const fairBet = b => b.ev>0 ? fairOdds(b.ev/b.odds) : '';   // 買い目の予想オッズ = オッズ ÷ 期待回収率（的中は丸めてあるため）
+const upCls = (odds, p) => odds!=null && p>0 && odds*p >= 1 ? ' up' : '';
+
 let opened = new Set();           // 表示を作り直すとき、開いていたレースを開いたままにする
 function raceHtml(r, ref){
   const h = r.horses, hon = h[0];
   const rows = sortHorses(h).map(x => `<tr><td class="m">${x.mark}</td><td class="n">${x.no}</td><td>${esc(x.name)}</td>
     <td class="n">${pct(x.p1)}<span class="bar" style="width:${Math.round(x.p1*90)}px"></span></td>
-    <td class="n">${pct(x.p3,0)}</td><td class="n">${x.odds!=null?x.odds.toFixed(1):'—'}</td><td>${esc(x.train)}</td></tr>`).join('');
+    <td class="n">${pct(x.p3,0)}</td><td class="n${upCls(x.odds, x.p1)}">${x.odds!=null?x.odds.toFixed(1):'—'}</td><td class="n fo">${fairOdds(x.p1)}</td><td>${esc(x.train)}</td></tr>`).join('');
   const hasStake = false;  // 日付の画面には結果を出さない（収支は『収支』ボタン）
   const bets = r.bets.map(b => `<tr>${hasStake?`<td>${resultHtml(b)}</td>`:''}<td>${b.kind}</td><td><b>${b.comb}</b></td><td class="n">${pct(b.p)}</td>
-    <td class="n">${b.odds.toFixed(1)}${b.est?"*":""}</td><td class="n ev ${b.ev>=1.2?'hi':''}">${Math.round(b.ev*100)}%</td></tr>`).join('');
+    <td class="n${b.ev>=1?' up':''}">${b.odds.toFixed(1)}${b.est?"*":""}</td><td class="n fo">${fairBet(b)}</td><td class="n ev ${b.ev>=1.2?'hi':''}">${Math.round(b.ev*100)}%</td></tr>`).join('');
   return `<details class="race" data-id="${r.id}"${opened.has(r.id)?' open':''}><summary>
     <div class="rn">${r.no}R</div><div class="rt">${esc(r.name)}</div><div class="chev">›</div>
     <div class="rc">${r.cond}・${r.time}・<span class="ver ${r.live?'live':''}">${r.live?'直前 '+r.live+'版':'前日版'}</span>${r.ur!=null?'・'+areHtml(r.ur, true):''}</div>
@@ -155,7 +162,7 @@ function raceHtml(r, ref){
       <div class="sub">出走馬（${HSORT[hsort.k].label}${hsort.d===HSORT[hsort.k].d?'':'（逆順）'}・見出しを押すと並び替え）</div>
       <div class="tw"><table><tr><th></th>${HCOLS.map(([k,l,n]) => `<th class="s${n?' n':''}${hsort.k===k?' on'+(hsort.d>0?' up':''):''}" data-k="${k}">${l}</th>`).join('')}</tr>${rows}</table></div>
       <div class="sub">買い目（券種・買い目の順・各100円）</div>
-      <div class="tw"><table><tr>${hasStake?'<th>結果</th>':''}<th>券種</th><th>買い目</th><th class="n">的中</th><th class="n">オッズ</th><th class="n">期待</th></tr>${bets}</table></div>
+      <div class="tw"><table><tr>${hasStake?'<th>結果</th>':''}<th>券種</th><th>買い目</th><th class="n">的中</th><th class="n">オッズ</th><th class="n">予想オッズ</th><th class="n">期待</th></tr>${bets}</table></div>
     </div></details>`;
 }
 
@@ -221,17 +228,17 @@ function show(d, keepVenue){
   // 期待回収率の高い買い目の一覧（表。オッズ・的中確率・発走時刻も出し、はみ出す分は横にスクロール。レースの列は左に固定）
   const top = topAll.slice().sort((a,b)=>betCmp({v:a.venue,n:a.no,kind:a.kind,comb:a.comb},{v:b.venue,n:b.no,kind:b.kind,comb:b.comb})).map(t => `<tr><td class="r">${t.venue}${t.no}R${areHtml(t.ur, false)}</td>
     <td>${t.kind}</td><td><b>${t.comb}</b></td><td class="n ev ${t.ev>=1.2?'hi':''}">${Math.round(t.ev*100)}%</td>
-    <td class="n">${t.odds.toFixed(1)}${t.est?'*':''}</td><td class="n">${pct(t.p)}</td><td class="n">${t.time||''}</td></tr>`).join('');
+    <td class="n${t.ev>=1?' up':''}">${t.odds.toFixed(1)}${t.est?'*':''}</td><td class="n fo">${fairBet(t)}</td><td class="n">${pct(t.p)}</td><td class="n">${t.time||''}</td></tr>`).join('');
   view.innerHTML = `
     <div class="meta">${d}（${wd(d)}）の予想 ・ ${updLabel(d)}版 ・ ${esc(D.model)}</div>
     <h2 class="sec">期待回収率${thr}%以上・的中${hit?hit+'%以上':'どれでも'}の買い目（${topAll.length}点）</h2>
     <div class="hf">期待回収率 <select id="thr">${THRS.map(x=>`<option value="${x}"${x===thr?' selected':''}>${x}%以上</option>`).join('')}</select>
-    的中 <select id="hit">${HITS.map(x=>`<option value="${x}"${x===hit?' selected':''}>${x?x+'%以上':'どれでも'}</option>`).join('')}</select></div>${top ? `<div class="tw topt"><table><tr><th>レース</th><th>券種</th><th>買い目</th><th class="n">期待</th><th class="n">オッズ</th><th class="n">的中</th><th class="n">発走</th></tr>${top}</table></div>` : '<div class="mute">なし</div>'}
+    的中 <select id="hit">${HITS.map(x=>`<option value="${x}"${x===hit?' selected':''}>${x?x+'%以上':'どれでも'}</option>`).join('')}</select></div>${top ? `<div class="tw topt"><table><tr><th>レース</th><th>券種</th><th>買い目</th><th class="n">期待</th><th class="n">オッズ</th><th class="n">予想オッズ</th><th class="n">的中</th><th class="n">発走</th></tr>${top}</table></div>` : '<div class="mute">なし</div>'}
     <h2 class="sec">${isToday?'これから発走するレース':'レース'}</h2>
     ${vs.length ? `<div class="tabs">${vs.map(v=>`<button data-v="${v}" class="${v===venueOn?'on':''}">${v}</button>`).join('')}</div>
     <div class="wx">天気予報（気象庁）: ${esc(D.weather[venueOn]||'')}</div>
     ${venues[venueOn].map(r => raceHtml(r, D.ref)).join('')}` : '<div class="mute">今日のレースはすべて発走しました</div>'}
-    <footer>期待回収率 = 的中確率 × オッズ。確率はモデルの推定で、当たりを約束するものではありません。オッズの * は、前売りの量が少ないため推定で置き換えた値。荒れ度 = 三連単の払戻が10万円を超える見込み（1着の確率の散らばりと頭数から、過去のレースで当てはめた式。平均は約2割）。35%以上に「荒れそう」。荒れやすさはオッズにもほぼ表れているので、荒れそうなレースで穴を買えば得、というわけではありません。</footer>`;
+    <footer>期待回収率 = 的中確率 × オッズ。予想オッズ = 1 ÷ 予想の確率（オッズがこれより高いと期待回収率が100%を超え、緑で示す）。オッズはその版の時刻の値で、締め切りまでに動く。確率はモデルの推定で、当たりを約束するものではありません。オッズの * は、前売りの量が少ないため推定で置き換えた値。荒れ度 = 三連単の払戻が10万円を超える見込み（1着の確率の散らばりと頭数から、過去のレースで当てはめた式。平均は約2割）。35%以上に「荒れそう」。荒れやすさはオッズにもほぼ表れているので、荒れそうなレースで穴を買えば得、というわけではありません。</footer>`;
   view.querySelectorAll('.tabs button[data-v]').forEach(b => b.onclick = () => { venueOn = b.dataset.v; show(curDate, true); });
   document.getElementById('thr').onchange = e => { thr = +e.target.value; try{ localStorage.setItem('thr', thr); }catch(e){} show(curDate, true); };
   document.getElementById('hit').onchange = e => { hit = +e.target.value; try{ localStorage.setItem('hit', hit); }catch(e){} show(curDate, true); };
